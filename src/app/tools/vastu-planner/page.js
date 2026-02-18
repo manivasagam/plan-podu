@@ -8,6 +8,7 @@ import {
     COLOR_SCHEME, DIRECTIONS_8, DIRECTIONS_4,
     calculateVastuScore,
 } from "./vastuData";
+import VastuGrid from "./VastuGrid";
 
 const STEPS = [
     { num: 1, icon: "📐", tamil: "மனை விவரம்" },
@@ -82,6 +83,7 @@ function VastuPlannerInner() {
     const [fd, setFd] = useState(INITIAL);
     const [result, setResult] = useState(null);
     const [copied, setCopied] = useState(false);
+    const [errorMsg, setErrorMsg] = useState("");
     const reportRef = useRef(null);
     const initialized = useRef(false);
 
@@ -99,7 +101,27 @@ function VastuPlannerInner() {
 
     const set = (key, val) => setFd((p) => ({ ...p, [key]: val }));
     const toggle = (key) => setFd((p) => ({ ...p, [key]: !p[key] }));
-    const next = () => setStep((s) => Math.min(s + 1, 4));
+    // Validation & Nav
+    const next = () => {
+        setErrorMsg("");
+        if (step === 1) {
+            if (!fd.dimNS || !fd.dimEW) {
+                setErrorMsg("⚠️ தயவுசெய்து மனை அளவுகளை உள்ளிடவும் (Please enter plot dimensions)");
+                return;
+            }
+            if (!fd.roadN && !fd.roadS && !fd.roadE && !fd.roadW) {
+                setErrorMsg("⚠️ தெரு இருக்கும் திசையைத் தேர்ந்தெடுக்கவும் (Select road direction)");
+                return;
+            }
+        }
+        if (step === 2) {
+            if (!fd.doorDirection) {
+                setErrorMsg("⚠️ வாசல் திசையைத் தேர்ந்தெடுக்கவும் (Select entrance direction)");
+                return;
+            }
+        }
+        setStep((s) => Math.min(s + 1, 4));
+    };
     const prev = () => setStep((s) => Math.max(s - 1, 1));
 
     const generate = () => {
@@ -148,6 +170,9 @@ function VastuPlannerInner() {
     const padaKey = { N: "NORTH", E: "EAST", S: "SOUTH", W: "WEST", NE: "EAST", SE: "SOUTH", SW: "WEST", NW: "NORTH" }[fd.doorDirection];
     const padaDir = padaKey ? PADA_SYSTEM[padaKey] : null;
 
+    // Dynamic Door Label (Fix Bug 2)
+    const doorWallLabel = fd.doorDirection ? DIRECTIONS_8.find(d => d.key === fd.doorDirection)?.tamil : "";
+
     const handleDownload = () => window.print();
 
     const shareText = result
@@ -175,7 +200,7 @@ function VastuPlannerInner() {
                                 <button
                                     key={st.num}
                                     className={`${s.dot} ${step === st.num ? s.dotActive : ""} ${step > st.num ? s.dotDone : ""}`}
-                                    onClick={() => step > st.num && setStep(st.num)}
+                                    onClick={() => setStep(st.num)} // Make clickable (Fix UI suggestion)
                                     type="button"
                                 >
                                     <span className={s.dotIcon}>{step > st.num ? "✓" : st.icon}</span>
@@ -222,11 +247,11 @@ function VastuPlannerInner() {
                             <div className={s.row2}>
                                 <div className={s.field}>
                                     <label className={s.lbl}>வடக்கு-தெற்கு (ft)</label>
-                                    <input type="number" className={s.inp} placeholder="40" value={fd.dimNS} onChange={(e) => set("dimNS", e.target.value)} inputMode="numeric" />
+                                    <input type="number" className={s.inp} placeholder="உதா: 40" value={fd.dimNS} onChange={(e) => set("dimNS", e.target.value)} inputMode="numeric" />
                                 </div>
                                 <div className={s.field}>
                                     <label className={s.lbl}>கிழக்கு-மேற்கு (ft)</label>
-                                    <input type="number" className={s.inp} placeholder="30" value={fd.dimEW} onChange={(e) => set("dimEW", e.target.value)} inputMode="numeric" />
+                                    <input type="number" className={s.inp} placeholder="உதா: 30" value={fd.dimEW} onChange={(e) => set("dimEW", e.target.value)} inputMode="numeric" />
                                 </div>
                             </div>
                             {area > 0 && <p className={s.areaTag}>📐 {area.toLocaleString()} sq.ft</p>}
@@ -259,7 +284,10 @@ function VastuPlannerInner() {
 
                             <div className={s.nav}>
                                 <div />
-                                <button className={s.btnNext} onClick={next} disabled={!fd.dimNS || !fd.dimEW} type="button">அடுத்து →</button>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                    <button className={s.btnNext} onClick={next} type="button">அடுத்து →</button>
+                                    {errorMsg && <div className={s.errorMsg}>{errorMsg}</div>}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -302,7 +330,7 @@ function VastuPlannerInner() {
                                 };
                                 return (
                                     <>
-                                        <label className={s.lbl}>🚪 கதவு எந்த பக்கம்? <small style={{ fontWeight: 400, color: '#64748B' }}>({padaDir.direction} சுவரில்)</small></label>
+                                        <label className={s.lbl}>🚪 கதவு எந்த பக்கம்? <small style={{ fontWeight: 400, color: '#64748B' }}>({doorWallLabel || padaDir.direction} சுவரில்)</small></label>
                                         <p className={s.helperText}>வெளியிலிருந்து பார்க்கும்போது, உங்கள் கதவு சுவரின் எந்தப் பகுதியில் உள்ளது?</p>
                                         <div className={s.wallPicker}>
                                             {zones.map((zone) => {
@@ -386,7 +414,10 @@ function VastuPlannerInner() {
 
                             <div className={s.nav}>
                                 <button className={s.btnPrev} onClick={prev} type="button">← பின்</button>
-                                <button className={s.btnNext} onClick={next} disabled={!fd.doorDirection} type="button">அடுத்து →</button>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                    <button className={s.btnNext} onClick={next} type="button">அடுத்து →</button>
+                                    {errorMsg && <div className={s.errorMsg}>{errorMsg}</div>}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -478,6 +509,12 @@ function VastuPlannerInner() {
                                             <span>🚪 {fd.doorDirection}</span>
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* Vastu Grid (New Feature) */}
+                                <div className={s.rptSection}>
+                                    <h3 className={s.rptH}>🗺️ வாஸ்து வரைபடம் (Vastu Grid)</h3>
+                                    <VastuGrid fd={fd} />
                                 </div>
 
                                 {/* Pada */}

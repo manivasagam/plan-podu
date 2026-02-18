@@ -1,0 +1,6 @@
+.shareBtn {
+    font-size: 0.95rem;
+    padding: 12px 24px;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+}
